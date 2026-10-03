@@ -27,8 +27,8 @@
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan codes."
         }
-      ]
+      ],
+      "expo-audio"
     ]
   }
 }
-
