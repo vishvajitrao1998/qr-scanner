@@ -26,3 +26,7 @@ export async function deleteScan(id: string) {
     JSON.stringify(history.filter((item) => item.id !== id))
   );
 }
+
+export async function clearHistory() {
+  await AsyncStorage.removeItem(KEY);
+}

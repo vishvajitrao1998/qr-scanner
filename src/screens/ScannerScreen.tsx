@@ -7,7 +7,6 @@ import {
 } from "@react-navigation/native";
 import { useAudioPlayer } from "expo-audio";
 import { BarcodeScanningResult, CameraView, useCameraPermissions } from "expo-camera";
-import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
@@ -18,7 +17,8 @@ import { AppSettings, DEFAULT_SETTINGS, loadSettings } from "../storage/settings
 import { useTheme } from "../theme/ThemeContext";
 import { ScanRecord, ScanSource } from "../types/scan";
 import { parseScan } from "../utils/parseScan";
-
+import { getBeepSource } from "../utils/sounds";
+import { vibrateSuccess } from "../utils/vibrate";
 // Only formats that expo-camera exposes
 const BARCODE_TYPES = [
   "qr",
@@ -47,12 +47,12 @@ export default function ScannerScreen() {
 
   const [torch, setTorch] = useState(false);
   const [processing, setProcessing] = useState(false);
-
+  const [beepId, setBeepId] = useState(DEFAULT_SETTINGS.beepId);
   const busy = useRef(false);
   const lastScan = useRef<{ data: string; time: number } | null>(null);
   const settings = useRef<AppSettings>(DEFAULT_SETTINGS);
 
-  const player = useAudioPlayer(require("../../assets/sounds/beep.mp3"));
+  const player = useAudioPlayer(getBeepSource(beepId));
 
   // When the screen gains focus: unlock scanning, restart the duplicate cooldown, reload settings.
   // When it loses focus: switch the torch off.
@@ -61,22 +61,27 @@ export default function ScannerScreen() {
       busy.current = false;
       setProcessing(false);
       if (lastScan.current) lastScan.current.time = Date.now();
-      loadSettings().then((s) => (settings.current = s));
+      loadSettings().then((s) => {
+        settings.current = s;
+        setBeepId(s.beepId);
+      });
       return () => setTorch(false);
     }, [])
   );
 
   const feedback = () => {
-    if (settings.current.vibrate) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-    if (settings.current.sound) {
-      try {
-        player.seekTo(0);
-        player.play();
-      } catch {}
-    }
-  };
+  if (settings.current.vibrate) {
+    // Some phones block vibration while the camera is active,
+    // so wait a moment until the scanner has closed
+    setTimeout(vibrateSuccess, 300);
+  }
+  if (settings.current.sound) {
+    try {
+      player.seekTo(0);
+      player.play();
+    } catch {}
+  }
+};
 
   const handleDetected = (data: string, format: string, source: ScanSource) => {
     const parsed = parseScan(data, format);
@@ -89,20 +94,21 @@ export default function ScannerScreen() {
       timestamp: Date.now(),
     };
     feedback();
-    addScan(record).catch(() => {});
+    addScan(record).catch(() => { });
     navigation.navigate("Result", { scan: record });
   };
 
-  const onBarcodeScanned = ({ data, type }: BarcodeScanningResult) => {
-    if (busy.current || !data) return;
+  const onBarcodeScanned = ({ data, raw, type }: BarcodeScanningResult) => {
+    const content = raw || data; // full encoded text, not just the parsed part
+    if (busy.current || !content) return;
 
     const now = Date.now();
     const last = lastScan.current;
-    if (last && last.data === data && now - last.time < DUPLICATE_WINDOW_MS) return;
+    if (last && last.data === content && now - last.time < DUPLICATE_WINDOW_MS) return;
 
-    busy.current = true; // block further callbacks immediately
-    lastScan.current = { data, time: now };
-    handleDetected(data, type, "camera");
+    busy.current = true;
+    lastScan.current = { data: content, time: now };
+    handleDetected(content, type, "camera");
   };
 
   const pickFromGallery = async () => {
@@ -132,9 +138,10 @@ export default function ScannerScreen() {
         return;
       }
 
-      const { data, type } = results[0];
-      lastScan.current = { data, time: Date.now() };
-      handleDetected(data, type, "gallery");
+      const { data, raw, type } = results[0];
+      const content = raw || data;
+      lastScan.current = { data: content, time: Date.now() };
+      handleDetected(content, type, "gallery");
     } catch {
       Alert.alert("Something went wrong", "We couldn't read that image. Please try another one.");
       busy.current = false;

@@ -12,13 +12,19 @@ import ResultScreen from "../screens/ResultScreen";
 import { ScanRecord } from "../types/scan";
 import { NavigatorScreenParams } from "@react-navigation/native";
 import TabNavigator, { TabParamList } from "./TabNavigator";
+import AboutScreen from "../screens/AboutScreen";
+import LegalScreen from "../screens/LegalScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
   Main: NavigatorScreenParams<TabParamList> | undefined;
   Settings: undefined;
   Result: { scan: ScanRecord };
+  About: undefined;
+  Legal: { doc: "privacy" | "terms" };
 };
+
+
 
 
 
@@ -68,6 +74,19 @@ export default function RootNavigator() {
             headerShadowVisible: false,
             animation: "slide_from_bottom",
           }}
+        />
+        <Stack.Screen
+          name="About"
+          component={AboutScreen}
+          options={{ title: "About", headerShadowVisible: false }}
+        />
+        <Stack.Screen
+          name="Legal"
+          component={LegalScreen}
+          options={({ route }) => ({
+            title: route.params.doc === "privacy" ? "Privacy Policy" : "Terms of Use",
+            headerShadowVisible: false,
+          })}
         />
       </Stack.Navigator>
     </NavigationContainer>

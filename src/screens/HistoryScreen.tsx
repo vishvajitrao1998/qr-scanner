@@ -5,13 +5,24 @@ import {
   useNavigation,
 } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { RootStackParamList } from "../navigation/RootNavigator";
-import { deleteScan, getHistory } from "../storage/history";
+import { clearHistory, deleteScan, getHistory } from "../storage/history";
 import { useTheme } from "../theme/ThemeContext";
 import { ScanRecord } from "../types/scan";
 import { CONTENT_ICONS } from "../utils/contentIcons";
+import { ExportKind, exportHistory } from "../utils/exportHistory";
 import { formatLabel, parseScan } from "../utils/parseScan";
+
+const DANGER = "#EF4444";
 
 function formatTime(timestamp: number) {
   const d = new Date(timestamp);
@@ -28,8 +39,8 @@ export default function HistoryScreen() {
 
   const [items, setItems] = useState<ScanRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [exporting, setExporting] = useState<ExportKind | null>(null);
 
-  // Reload every time the tab comes into focus, so new scans appear immediately
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -59,6 +70,39 @@ export default function HistoryScreen() {
     ]);
   };
 
+  const confirmClearAll = () => {
+    if (!items.length) return;
+    Alert.alert(
+      "Delete all scans?",
+      `This permanently removes all ${items.length} scans from your history.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete all",
+          style: "destructive",
+          onPress: async () => {
+            await clearHistory();
+            setItems([]);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleExport = async (kind: ExportKind) => {
+    if (!items.length || exporting) return;
+    setExporting(kind);
+    try {
+      await exportHistory(items, kind);
+    } catch {
+      Alert.alert("Export failed", "We couldn't create the file. Please try again.");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const hasItems = items.length > 0;
+
   const renderItem = ({ item }: { item: ScanRecord }) => {
     const parsed = parseScan(item.data, item.format);
 
@@ -80,9 +124,7 @@ export default function HistoryScreen() {
           <Text style={[styles.title, { color: c.text }]} numberOfLines={1}>
             {parsed.label}
           </Text>
-
-          
-          <Text style={[styles.data, { color: c.subtext }]} numberOfLines={1}>
+          <Text style={[styles.data, { color: c.subtext }]} numberOfLines={2}>
             {item.data}
           </Text>
           <Text style={[styles.meta, { color: c.subtext }]}>
@@ -97,11 +139,61 @@ export default function HistoryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
+      {/* Action buttons */}
+      <View style={styles.toolbar}>
+        <Pressable
+          onPress={() => handleExport("txt")}
+          disabled={!hasItems || !!exporting}
+          style={[
+            styles.action,
+            { backgroundColor: c.surface, borderColor: c.border },
+            (!hasItems || !!exporting) && styles.disabled,
+          ]}
+        >
+          {exporting === "txt" ? (
+            <ActivityIndicator size="small" color={c.text} />
+          ) : (
+            <Ionicons name="document-text-outline" size={18} color={c.text} />
+          )}
+          <Text style={[styles.actionText, { color: c.text }]}>Export .txt</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => handleExport("csv")}
+          disabled={!hasItems || !!exporting}
+          style={[
+            styles.action,
+            { backgroundColor: c.surface, borderColor: c.border },
+            (!hasItems || !!exporting) && styles.disabled,
+          ]}
+        >
+          {exporting === "csv" ? (
+            <ActivityIndicator size="small" color={c.text} />
+          ) : (
+            <Ionicons name="grid-outline" size={18} color={c.text} />
+          )}
+          <Text style={[styles.actionText, { color: c.text }]}>Export .csv</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={confirmClearAll}
+          disabled={!hasItems}
+          style={[
+            styles.action,
+            { backgroundColor: c.surface, borderColor: DANGER },
+            !hasItems && styles.disabled,
+          ]}
+        >
+          <Ionicons name="trash-outline" size={18} color={DANGER} />
+          <Text style={[styles.actionText, { color: DANGER }]}>Delete all</Text>
+        </Pressable>
+      </View>
+
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        contentContainerStyle={[styles.list, items.length === 0 && styles.listEmpty]}
+        contentContainerStyle={[styles.list, !hasItems && styles.listEmpty]}
         ListEmptyComponent={
           loaded ? (
             <View style={styles.empty}>
@@ -122,6 +214,19 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  toolbar: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 8 },
+  action: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  actionText: { fontSize: 12.5, fontWeight: "700" },
+  disabled: { opacity: 0.4 },
   list: { padding: 16, gap: 12 },
   listEmpty: { flexGrow: 1, justifyContent: "center" },
   card: {

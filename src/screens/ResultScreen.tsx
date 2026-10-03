@@ -5,25 +5,10 @@ import { useState } from "react";
 import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { useTheme } from "../theme/ThemeContext";
-import { ContentType } from "../types/scan";
-import { formatLabel, parseScan } from "../utils/parseScan";
 import { CONTENT_ICONS } from "../utils/contentIcons";
+import { formatLabel, parseScan } from "../utils/parseScan";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Result">;
-
-const ICONS: Record<ContentType, React.ComponentProps<typeof Ionicons>["name"]> = {
-  url: "link",
-  wifi: "wifi",
-  email: "mail",
-  phone: "call",
-  sms: "chatbubble",
-  geo: "location",
-  contact: "person",
-  event: "calendar",
-  product: "pricetag",
-  isbn: "book",
-  text: "document-text",
-};
 
 export default function ResultScreen({ route, navigation }: Props) {
   const scan = route.params?.scan;
@@ -33,11 +18,18 @@ export default function ResultScreen({ route, navigation }: Props) {
 
   if (!scan) {
     return (
-      <View style={[styles.container, { backgroundColor: c.background, alignItems: "center", justifyContent: "center", padding: 32 }]}>
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: c.background, alignItems: "center", justifyContent: "center", padding: 32 },
+        ]}
+      >
         <Text style={[styles.type, { color: c.text }]}>Nothing to show</Text>
         <Pressable
           style={[styles.primary, { backgroundColor: c.primary, paddingHorizontal: 32, marginTop: 12 }]}
-          onPress={() => navigation.goBack()}
+          onPress={() =>
+            navigation.canGoBack() ? navigation.goBack() : navigation.replace("Main")
+          }
         >
           <Text style={styles.primaryText}>Go back</Text>
         </Pressable>
@@ -55,8 +47,6 @@ export default function ResultScreen({ route, navigation }: Props) {
 
   const share = () => Share.share({ message: scan.data });
 
-
-// 👇 add it here
   const scanAgain = () => {
     navigation.reset({
       index: 0,
@@ -65,8 +55,9 @@ export default function ResultScreen({ route, navigation }: Props) {
       ],
     });
   };
+
   const runAction = () => {
-    if (parsed.actionUrl) Linking.openURL(parsed.actionUrl).catch(() => { });
+    if (parsed.actionUrl) Linking.openURL(parsed.actionUrl).catch(() => {});
   };
 
   return (
@@ -85,32 +76,39 @@ export default function ResultScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* Parsed details */}
-        {parsed.details.length > 0 && (
-          <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-            {parsed.details.map((d, i) => (
-              <View
-                key={d.label}
-                style={[
-                  styles.row,
-                  i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
-                ]}
-              >
-                <Text style={[styles.rowLabel, { color: c.subtext }]}>{d.label}</Text>
-                <Text style={[styles.rowValue, { color: c.text }]} selectable>
-                  {d.value}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Raw content */}
+        {/* Main content: all decoded fields + the full raw text */}
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.rowLabel, { color: c.subtext, marginBottom: 8 }]}>Content</Text>
-          <Text style={[styles.raw, { color: c.text }]} selectable>
-            {scan.data}
-          </Text>
+          {parsed.details.map((d, i) => (
+            <View
+              key={d.label}
+              style={[
+                styles.row,
+                i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+              ]}
+            >
+              <Text style={[styles.rowLabel, { color: c.subtext }]}>{d.label}</Text>
+              <Text style={[styles.rowValue, { color: c.text }]} selectable>
+                {d.value}
+              </Text>
+            </View>
+          ))}
+
+          <View
+            style={[
+              styles.row,
+              parsed.details.length > 0 && {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: c.border,
+              },
+            ]}
+          >
+            <Text style={[styles.rowLabel, { color: c.subtext }]}>
+              {parsed.details.length > 0 ? "Raw content" : "Content"}
+            </Text>
+            <Text style={[styles.raw, { color: c.text }]} selectable>
+              {scan.data}
+            </Text>
+          </View>
         </View>
 
         <Text style={[styles.time, { color: c.subtext }]}>

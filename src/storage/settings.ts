@@ -2,9 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const KEY = "app:settings";
 
-export type AppSettings = { vibrate: boolean; sound: boolean };
+export type AppSettings = { vibrate: boolean; sound: boolean; beepId: string };
 
-export const DEFAULT_SETTINGS: AppSettings = { vibrate: true, sound: true };
+export const DEFAULT_SETTINGS: AppSettings = {
+  vibrate: true,
+  sound: true,
+  beepId: "beep1",
+};
 
 export async function loadSettings(): Promise<AppSettings> {
   try {
