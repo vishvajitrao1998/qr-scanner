@@ -6,7 +6,8 @@ import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "r
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { useTheme } from "../theme/ThemeContext";
 import { CONTENT_ICONS } from "../utils/contentIcons";
-import { formatLabel, parseScan } from "../utils/parseScan";
+import { SOURCE_LABELS, formatLabel, parseScan } from "../utils/parseScan";
+import QRCode from "react-native-qrcode-svg";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Result">;
 
@@ -57,7 +58,7 @@ export default function ResultScreen({ route, navigation }: Props) {
   };
 
   const runAction = () => {
-    if (parsed.actionUrl) Linking.openURL(parsed.actionUrl).catch(() => {});
+    if (parsed.actionUrl) Linking.openURL(parsed.actionUrl).catch(() => { });
   };
 
   return (
@@ -71,10 +72,25 @@ export default function ResultScreen({ route, navigation }: Props) {
           <Text style={[styles.type, { color: c.text }]}>{parsed.label}</Text>
           <View style={[styles.chip, { backgroundColor: c.surface }]}>
             <Text style={[styles.chipText, { color: c.subtext }]}>
-              {formatLabel(scan.format)} · {scan.source === "gallery" ? "Gallery" : "Camera"}
+              {formatLabel(scan.format)} · {formatLabel(scan.format)} · {SOURCE_LABELS[scan.source]}
             </Text>
           </View>
         </View>
+
+        {/* 👇 Add the QR image block here */}
+        {scan.source === "created" && (
+          <View style={styles.qrWrap}>
+            <View style={styles.qrCard}>
+              <QRCode
+                value={scan.data}
+                size={200}
+                color={scan.color ?? "#000000"}
+                backgroundColor="#FFFFFF"
+                ecl="M"
+              />
+            </View>
+          </View>
+        )}
 
         {/* Main content: all decoded fields + the full raw text */}
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -154,6 +170,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 14,
   },
+  qrWrap: { alignItems: "center", marginBottom: 16 },
+  qrCard: { backgroundColor: "#FFFFFF", padding: 16, borderRadius: 20 },
   type: { fontSize: 22, fontWeight: "700", marginBottom: 10 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   chipText: { fontSize: 13, fontWeight: "600" },

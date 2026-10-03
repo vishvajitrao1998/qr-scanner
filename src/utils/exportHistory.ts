@@ -1,11 +1,12 @@
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { ScanRecord } from "../types/scan";
-import { formatLabel, parseScan } from "./parseScan";
+import { SOURCE_LABELS, formatLabel, parseScan } from "./parseScan";
 
 export type ExportKind = "txt" | "csv";
 
 const pad = (n: number) => String(n).padStart(2, "0");
+
 
 function formatDate(ts: number) {
   const d = new Date(ts);
@@ -22,7 +23,7 @@ function fileStamp() {
 }
 
 function sourceLabel(item: ScanRecord) {
-  return item.source === "gallery" ? "Gallery" : "Camera";
+  return SOURCE_LABELS[item.source];
 }
 
 function buildTxt(items: ScanRecord[]) {

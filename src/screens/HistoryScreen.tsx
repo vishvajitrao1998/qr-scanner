@@ -128,7 +128,13 @@ export default function HistoryScreen() {
             {item.data}
           </Text>
           <Text style={[styles.meta, { color: c.subtext }]}>
-            {formatLabel(item.format)} · {formatTime(item.timestamp)}
+            {[
+              item.source === "created" ? "Created" : null,
+              formatLabel(item.format),
+              formatTime(item.timestamp),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </Text>
         </View>
 

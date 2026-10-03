@@ -6,7 +6,7 @@ import {
   useNavigation,
 } from "@react-navigation/native";
 import { useAudioPlayer } from "expo-audio";
-import { BarcodeScanningResult, CameraView, useCameraPermissions } from "expo-camera";
+import { BarcodeScanningResult, CameraView,scanFromURLAsync, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
@@ -16,7 +16,7 @@ import { addScan } from "../storage/history";
 import { AppSettings, DEFAULT_SETTINGS, loadSettings } from "../storage/settings";
 import { useTheme } from "../theme/ThemeContext";
 import { ScanRecord, ScanSource } from "../types/scan";
-import { parseScan } from "../utils/parseScan";
+import { normalizeFormat, parseScan } from "../utils/parseScan";
 import { getBeepSource } from "../utils/sounds";
 import { vibrateSuccess } from "../utils/vibrate";
 // Only formats that expo-camera exposes
@@ -51,7 +51,7 @@ export default function ScannerScreen() {
   const busy = useRef(false);
   const lastScan = useRef<{ data: string; time: number } | null>(null);
   const settings = useRef<AppSettings>(DEFAULT_SETTINGS);
-
+  const pendingVibrate = useRef(false);
   const player = useAudioPlayer(getBeepSource(beepId));
 
   // When the screen gains focus: unlock scanning, restart the duplicate cooldown, reload settings.
@@ -65,34 +65,41 @@ export default function ScannerScreen() {
         settings.current = s;
         setBeepId(s.beepId);
       });
-      return () => setTorch(false);
+
+      return () => {
+        setTorch(false);
+        // The scanner is closing and the camera is being released, so vibrate now
+        if (pendingVibrate.current) {
+          pendingVibrate.current = false;
+          setTimeout(vibrateSuccess, 250);
+        }
+      };
     }, [])
   );
 
   const feedback = () => {
-  if (settings.current.vibrate) {
-    // Some phones block vibration while the camera is active,
-    // so wait a moment until the scanner has closed
-    setTimeout(vibrateSuccess, 300);
-  }
-  if (settings.current.sound) {
-    try {
-      player.seekTo(0);
-      player.play();
-    } catch {}
-  }
-};
+    if (settings.current.vibrate) {
+      pendingVibrate.current = true; // buzz happens once the camera is released
+    }
+    if (settings.current.sound) {
+      try {
+        player.seekTo(0);
+        player.play();
+      } catch { }
+    }
+  };
 
   const handleDetected = (data: string, format: string, source: ScanSource) => {
-    const parsed = parseScan(data, format);
-    const record: ScanRecord = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      data,
-      format,
-      contentType: parsed.contentType,
-      source,
-      timestamp: Date.now(),
-    };
+  const fmt = normalizeFormat(format);
+  const parsed = parseScan(data, fmt);
+  const record: ScanRecord = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    data,
+    format: fmt,
+    contentType: parsed.contentType,
+    source,
+    timestamp: Date.now(),
+  };
     feedback();
     addScan(record).catch(() => { });
     navigation.navigate("Result", { scan: record });
@@ -126,7 +133,7 @@ export default function ScannerScreen() {
         return;
       }
 
-      const results = await CameraView.scanFromURLAsync(
+      const results = await scanFromURLAsync(
         picked.assets[0].uri,
         [...BARCODE_TYPES]
       );

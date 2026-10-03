@@ -1,4 +1,4 @@
-import { ContentType } from "../types/scan";
+import { ContentType, ScanSource  } from "../types/scan";
 
 export type ParsedScan = {
   contentType: ContentType;
@@ -9,6 +9,33 @@ export type ParsedScan = {
 };
 
 const PRODUCT_FORMATS = ["ean13", "ean8", "upc_a", "upc_e"];
+
+
+// Some devices report the barcode type as a number. These are the standard codes.
+const NUMERIC_FORMATS: Record<number, string> = {
+  1: "code128",
+  2: "code39",
+  4: "code93",
+  8: "codabar",
+  16: "datamatrix",
+  32: "ean13",
+  64: "ean8",
+  128: "itf14",
+  256: "qr",
+  512: "upc_a",
+  1024: "upc_e",
+  2048: "pdf417",
+  4096: "aztec",
+};
+
+export function normalizeFormat(format: unknown): string {
+  if (typeof format === "number") return NUMERIC_FORMATS[format] ?? String(format);
+  if (typeof format === "string") {
+    const f = format.trim().toLowerCase();
+    return /^\d+$/.test(f) ? NUMERIC_FORMATS[Number(f)] ?? f : f;
+  }
+  return "unknown";
+}
 
 const FORMAT_LABELS: Record<string, string> = {
   qr: "QR Code",
@@ -26,9 +53,16 @@ const FORMAT_LABELS: Record<string, string> = {
   aztec: "Aztec",
 };
 
-export function formatLabel(format: string) {
-  return FORMAT_LABELS[format] ?? format.toUpperCase();
+export function formatLabel(format: unknown) {
+  const f = normalizeFormat(format);
+  return FORMAT_LABELS[f] ?? f.toUpperCase();
 }
+
+export const SOURCE_LABELS: Record<ScanSource, string> = {
+  camera: "Camera",
+  gallery: "Gallery",
+  created: "Created",
+};
 
 // Splits on an unescaped separator and removes backslash escapes
 function splitUnescaped(s: string, sep: string) {
@@ -96,7 +130,8 @@ function compact(details: { label: string; value?: string }[]) {
 }
 
 
-export function parseScan(data: string, format: string): ParsedScan {
+export function parseScan(data: string, format: unknown): ParsedScan {
+  const fmt = normalizeFormat(format);
   const value = data.trim();
   const lower = value.toLowerCase();
 
@@ -267,7 +302,7 @@ export function parseScan(data: string, format: string): ParsedScan {
   }
 
   // Product / ISBN (numeric retail barcodes)
-  if (PRODUCT_FORMATS.includes(format) && /^\d+$/.test(value)) {
+  if (PRODUCT_FORMATS.includes(fmt) && /^\d+$/.test(value)) {
     if (format === "ean13" && /^97[89]/.test(value)) {
       return {
         contentType: "isbn",

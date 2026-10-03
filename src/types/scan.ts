@@ -11,7 +11,7 @@ export type ContentType =
   | "isbn"
   | "text";
 
-export type ScanSource = "camera" | "gallery";
+export type ScanSource = "camera" | "gallery" | "created";
 
 export type ScanRecord = {
   id: string;
@@ -20,4 +20,5 @@ export type ScanRecord = {
   contentType: ContentType;
   source: ScanSource;
   timestamp: number;
+  color?: string; // QR colour, used for codes created in the app
 };
