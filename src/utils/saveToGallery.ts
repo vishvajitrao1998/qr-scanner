@@ -1,37 +1,31 @@
 export type SaveResult = "saved" | "denied" | "unavailable";
 
 export async function saveImageToGallery(uri: string): Promise<SaveResult> {
-  let ML: any;
+  // 1) Older API: works in Expo Go
   try {
-    // Loaded here (not at the top of the file) so a missing native module can't crash the app
-    ML = require("expo-media-library");
-  } catch {
-    return "unavailable";
-  }
+    const legacy = require("expo-media-library/legacy");
 
-  try {
     // Write-only access: the app can add images but never reads your gallery
-    let granted = false;
-    try {
-      const r = await ML.requestPermissionsAsync(true);
-      granted = r?.granted ?? r?.status === "granted";
-    } catch {
-      const r = await ML.requestPermissionsAsync();
-      granted = r?.granted ?? r?.status === "granted";
-    }
-    if (!granted) return "denied";
+    const permission = await legacy.requestPermissionsAsync(true);
+    if (!permission.granted) return "denied";
 
-    if (typeof ML.saveToLibraryAsync === "function") {
-      await ML.saveToLibraryAsync(uri);
-    } else if (ML.Asset?.create) {
-      await ML.Asset.create(uri);
-    } else {
-      return "unavailable";
-    }
+    await legacy.saveToLibraryAsync(uri);
     return "saved";
   } catch (e) {
-    const message = String((e as any)?.message ?? e);
-    if (/native module/i.test(message)) return "unavailable";
-    throw e;
+    console.warn("Gallery save (legacy) failed:", e);
+  }
+
+  // 2) Newer API: used if the first one isn't available
+  try {
+    const { Asset, requestPermissionsAsync } = require("expo-media-library");
+
+    const permission = await requestPermissionsAsync(true);
+    if (!permission.granted) return "denied";
+
+    await Asset.create(uri);
+    return "saved";
+  } catch (e) {
+    console.warn("Gallery save (new) failed:", e);
+    return "unavailable";
   }
 }
